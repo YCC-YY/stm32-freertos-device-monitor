@@ -1,0 +1,29 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# CubeMX / build
+cmake-build-*/
+build/
+Debug/
+Release/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+
+# Core generated may be local-only if you prefer:
+# Core/Inc/stm32*_hal_conf.h
+# Core/Src/stm32*_hal_msp.c
+
+# OS
+.DS_Store
+Thumbs.db
