@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "stm32f1xx_hal.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +34,13 @@ void UART_Driver_Init(void);
 HAL_StatusTypeDef UART_Driver_Send(const uint8_t *data, uint16_t length);
 HAL_StatusTypeDef UART_Driver_SendString(const char *str);
 
-/* 中断里调用：收一个字节放进环缓。禁止在中断里调用 FreeRTOS 任务级 API */
+/*
+ * 注册“谁关心串口数据”（一般是 CommTask）。
+ * 中断收到字节后会 vTaskNotifyGiveFromISR 通知它起床。
+ */
+void UART_Driver_SetRxTask(TaskHandle_t task);
+
+/* 中断里调用：收字节入环缓 + 通知接收任务 */
 void UART_Driver_RxISR(uint8_t byte);
 
 /* 任务里调用：从环缓取一个字节，没有则返回 false */

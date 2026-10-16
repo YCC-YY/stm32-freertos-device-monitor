@@ -12,15 +12,18 @@
 /*
  * comm_task.c —— 串口命令处理任务
  *
- * 数据流：
- *   环缓字节 → CLI_InputChar 组装一行 → CLI_Execute 执行
+ * 数据流（事件驱动）：
+ *   UART 中断 Push 环缓 + vTaskNotifyGiveFromISR
+ *        ↓
+ *   CommTask ulTaskNotifyTake 醒来
+ *        ↓
+ *   一次掏空 RingBuffer → CLI 组行 → Execute
  *
- * 回显规则：只由 CLI_InputChar 回显一次，
- * 千万不要在本文件再 HAL_UART_Transmit 一遍，否则会看到命令重复。
+ * 通知只是“有数据了”的信号，字节本身在环缓里。
+ * 回显规则：只由 CLI_InputChar 回显一次，不要在本文件再 Transmit。
  */
 
-/* TaskHandle_t 用来标识和操作一个任务 ——> 通过它暂停、删除任务，或者获取任务状态
- * 保存任务句柄 */
+/* 任务句柄：标识本任务，也交给串口驱动做通知 */
 static TaskHandle_t s_comm_handle = NULL;
 
 /* 其他模块能通过调用这个函数拿到任务句柄
@@ -46,40 +49,43 @@ void CommTask_Start(void)
     }
 }
 
-/* 消费者任务
- * CommTask实际执行的内容 */
+/* 消费者任务主体 */
 void CommTask_Function(void *argument)
 {
-    char line[CLI_MAX_COMMAND_LENGTH]; /* 定义一个字符数组 line，缓存完整命令行 */
-    uint8_t byte;                      /* 临时存放环形缓冲区取出的 1 字节 */
+    char line[CLI_MAX_COMMAND_LENGTH]; /* 完整命令行缓冲 */
+    uint8_t byte;                      /* 环缓取出的 1 字节 */
     (void)argument;
 
-    /* 打印提示符，初始化命令行和通信通道 */
+    /* 把句柄交给串口驱动：中断用 Task Notification 唤醒本任务 */
+    UART_Driver_SetRxTask(xTaskGetCurrentTaskHandle());
+
     CLI_Init();
     Comm_Init();
-    /* 记录任务已准备就绪的日志 */
     LOG_INFO("CommTask ready");
 
     for (;;)
     {
-        /* 获取系统当前时间（以 tick 为单位），更新与通信任务相关的状态信息 */
         App_Status_BeatComm(App_GetTick());
 
-        /* 1. 取字节：从串口环形缓冲区弹出 1 个字节，喂给输入处理函数；环缓空则循环结束 */
+        /*
+         * 事件驱动等待：
+         *   有通知（串口来数据）→ 立刻返回
+         *   最长等 50ms → 兜底处理超时提交 / 心跳
+         * pdTRUE = 取出后清空通知计数（多次中断合并为一次）
+         */
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
+
+        /* 醒来后尽量掏空环缓（不是 1 字节 1 通知） */
         while (UART_Driver_PopRx(&byte))
         {
             CLI_InputChar((char)byte);
         }
-        /* 2. 超时检查：用户不发换行、静默超过阈值时，自动把当前行提交（避免命令卡住） */
+
         CLI_PollLineTimeout();
 
-        /* 3. 取已就绪的整行并执行：行未就绪返回非 OK，不做处理；就绪才送入解析执行 */
         if (CLI_ReadLine(line, sizeof(line)) == CLI_OK)
         {
             CLI_Execute(line);
         }
-
-        /* 短延时；后续可改成任务通知唤醒 */
-        vTaskDelay(pdMS_TO_TICKS(COMM_POLL_MS));
     }
 }
