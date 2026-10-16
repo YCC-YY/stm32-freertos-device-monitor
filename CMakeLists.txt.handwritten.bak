@@ -1,0 +1,132 @@
+ cmake_minimum_required(VERSION 4.3)
+project(KEY C)
+
+set(CMAKE_C_STANDARD 11)
+
+include_directories(Key/Core/Inc)
+include_directories(Key/Drivers/CMSIS)
+include_directories(Key/Drivers/CMSIS/Device)
+include_directories(Key/Drivers/CMSIS/Device/ST)
+include_directories(Key/Drivers/CMSIS/Device/ST/STM32F1xx)
+include_directories(Key/Drivers/CMSIS/Device/ST/STM32F1xx/Include)
+include_directories(Key/Drivers/CMSIS/Include)
+include_directories(Key/Drivers/STM32F1xx_HAL_Driver/Inc)
+include_directories(Key/Drivers/STM32F1xx_HAL_Driver/Inc/Legacy)
+include_directories(Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2)
+include_directories(Key/Middlewares/Third_Party/FreeRTOS/Source/include)
+include_directories(Key/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM3)
+
+add_executable(KEY
+        Key/Core/Inc/FreeRTOSConfig.h
+        Key/Core/Inc/gpio.h
+        Key/Core/Inc/main.h
+        Key/Core/Inc/stm32f1xx_hal_conf.h
+        Key/Core/Inc/stm32f1xx_it.h
+        Key/Core/Inc/usart.h
+        Key/Core/Src/freertos.c
+        Key/Core/Src/gpio.c
+        Key/Core/Src/main.c
+        Key/Core/Src/stm32f1xx_hal_msp.c
+        Key/Core/Src/stm32f1xx_hal_timebase_tim.c
+        Key/Core/Src/stm32f1xx_it.c
+        Key/Core/Src/syscalls.c
+        Key/Core/Src/sysmem.c
+        Key/Core/Src/system_stm32f1xx.c
+        Key/Core/Src/usart.c
+        Key/Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
+        Key/Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
+        Key/Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
+        Key/Drivers/CMSIS/Include/cmsis_armcc.h
+        Key/Drivers/CMSIS/Include/cmsis_armclang.h
+        Key/Drivers/CMSIS/Include/cmsis_compiler.h
+        Key/Drivers/CMSIS/Include/cmsis_gcc.h
+        Key/Drivers/CMSIS/Include/cmsis_iccarm.h
+        Key/Drivers/CMSIS/Include/cmsis_version.h
+        Key/Drivers/CMSIS/Include/core_armv8mbl.h
+        Key/Drivers/CMSIS/Include/core_armv8mml.h
+        Key/Drivers/CMSIS/Include/core_cm0.h
+        Key/Drivers/CMSIS/Include/core_cm0plus.h
+        Key/Drivers/CMSIS/Include/core_cm1.h
+        Key/Drivers/CMSIS/Include/core_cm23.h
+        Key/Drivers/CMSIS/Include/core_cm3.h
+        Key/Drivers/CMSIS/Include/core_cm33.h
+        Key/Drivers/CMSIS/Include/core_cm4.h
+        Key/Drivers/CMSIS/Include/core_cm7.h
+        Key/Drivers/CMSIS/Include/core_sc000.h
+        Key/Drivers/CMSIS/Include/core_sc300.h
+        Key/Drivers/CMSIS/Include/mpu_armv7.h
+        Key/Drivers/CMSIS/Include/mpu_armv8.h
+        Key/Drivers/CMSIS/Include/tz_context.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_exti.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio_ex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc_ex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_bus.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_cortex.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_dma.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_exti.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_gpio.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_pwr.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_rcc.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_system.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_usart.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_utils.h
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_exti.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash_ex.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio_ex.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_pwr.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc_ex.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim_ex.c
+        Key/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/freertos_mpool.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/freertos_os2.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/croutine.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/message_buffer.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/mpu_prototypes.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/stack_macros.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/StackMacros.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/stream_buffer.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM3/port.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM3/portmacro.h
+        Key/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/croutine.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/event_groups.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/list.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/queue.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+        Key/Middlewares/Third_Party/FreeRTOS/Source/timers.c)
