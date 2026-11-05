@@ -67,7 +67,11 @@ void LoggerTask_Function(void *argument)
     for (;;)
     {
         /* 心跳：即使很久没有日志，也要证明任务没卡死 */
-        App_Status_BeatLogger(App_GetTick());
+        /* 故障注入 FAULT_LOGGER：停心跳，Monitor 应告警 */
+        if (!App_Fault_IsSet(FAULT_LOGGER))
+        {
+            App_Status_BeatLogger(App_GetTick());
+        }
 
         /* 最多等 500ms；有消息就打印，没消息继续打心跳 */
         if (logQueue != NULL &&

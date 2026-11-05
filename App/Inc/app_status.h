@@ -70,6 +70,12 @@ void App_Status_Copy(AppStatus_t *out);
 void App_Status_SetUptime(uint32_t ms);
 void App_Status_SetSchedulerRunning(uint8_t run);
 
+/* 故障注入（演示用）：按 FAULT_* 位或组合 */
+void App_Fault_Set(uint32_t mask);
+void App_Fault_Clear(uint32_t mask);
+uint32_t App_Fault_Get(void);
+uint8_t App_Fault_IsSet(uint32_t mask);
+
 /* 当前系统 tick（毫秒），等价于开机后的运行时间 */
 uint32_t App_GetTick(void);
 

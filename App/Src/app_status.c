@@ -30,6 +30,9 @@ static AppStatus_t g_status;
  */
 static SemaphoreHandle_t s_local_mutex;
 
+/* 故障注入掩码（FAULT_*），CLI fault 命令写这里 */
+static uint32_t g_fault_mask;
+
 /*---------- 内部函数 ----------*/
 
 /* status_lock 用于获取互斥锁，优先尝试获取statusMutex，
@@ -254,4 +257,34 @@ void App_Status_SetSchedulerRunning(uint8_t run)
     status_lock();
     g_status.scheduler_running = run;
     status_unlock();
+}
+
+/* 故障注入：或上 mask 对应位 */
+void App_Fault_Set(uint32_t mask)
+{
+    status_lock();
+    g_fault_mask |= mask;
+    status_unlock();
+}
+
+/* 清除 mask 指定位（传 FAULT_NONE 则只读；传 ~0U 或各业务位可清） */
+void App_Fault_Clear(uint32_t mask)
+{
+    status_lock();
+    g_fault_mask &= ~mask;
+    status_unlock();
+}
+
+uint32_t App_Fault_Get(void)
+{
+    uint32_t m;
+    status_lock();
+    m = g_fault_mask;
+    status_unlock();
+    return m;
+}
+
+uint8_t App_Fault_IsSet(uint32_t mask)
+{
+    return (App_Fault_Get() & mask) != 0U ? 1U : 0U;
 }

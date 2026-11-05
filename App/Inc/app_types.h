@@ -78,4 +78,10 @@ typedef struct
     uint32_t monitor_heartbeat;
 } TaskHeartbeat_t;
 
+/* 故障注入掩码：CLI fault 命令使用，便于演示监控与容错 */
+#define FAULT_NONE    0U
+#define FAULT_SENSOR  (1U << 0)  /* 传感器读失败 + 停心跳 */
+#define FAULT_COMM    (1U << 1)  /* 串口处理“卡住”：不消费环缓 */
+#define FAULT_LOGGER  (1U << 2)  /* 日志任务停心跳（模拟卡死） */
+
 #endif /* APP_TYPES_H */

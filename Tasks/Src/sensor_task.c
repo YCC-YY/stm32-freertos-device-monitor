@@ -66,6 +66,7 @@ void SensorTask_Function(void *argument)
 {
     SensorData_t data;  /* 本帧采样结果
                            定义传感器数据结构体变量 data*/
+    uint32_t consec_err = 0; /* 连续读失败次数：>=3 认为传感器掉线 */
 
     (void)argument;     /* FreeRTOS 固定参数，本任务不用 */
 
@@ -81,7 +82,7 @@ void SensorTask_Function(void *argument)
         /* 记录初始化成功日志 */
         LOG_INFO("Sensor init OK");
     }
-    else
+else
     {
         /* 设置传感器就绪状态为 0 */
         App_Status_SetSensorReady(0U);
@@ -103,12 +104,26 @@ void SensorTask_Function(void *argument)
         /* 清空传感器数据结构体，做初始化清理 */
         memset(&data, 0, sizeof(data));
 
+        /* 故障注入 FAULT_SENSOR：强制失败并停心跳 */
+        if (App_Fault_IsSet(FAULT_SENSOR))
+        {
+            consec_err++;
+            App_Status_RecordSensorError();
+            App_Status_SetSensorReady(0U);
+            App_Status_BeatSensor(0);
+            LOG_WARN("Sensor read error");
+            vTaskDelay(pdMS_TO_TICKS(SENSOR_PERIOD_MS));
+            continue;
+        }
+
         if (Sensor_Read(&data) == SENSOR_OK)
         {
             /*（timestamp）采样时刻 */
             data.timestamp = now;
             /* Valid 判断是否采集到有效的结构体内容；1U为采集到有效结构体内容，0U则代表未采集到有效结构体内容 */
             data.valid = 1U;
+            consec_err = 0;                 /* 读成功：清零连续失败计数 */
+            App_Status_SetSensorReady(1U);  /* 恢复/保持“已就绪” */
 
             /* 缓存一份最新数据到全局状态（data存储传感器数据），供 status/sensor 命令显示 */
             App_Status_SetLatestSensor(&data);
@@ -134,9 +149,30 @@ void SensorTask_Function(void *argument)
         else
         {
             /* 记录传感器错误状态 */
+            consec_err++;
             App_Status_RecordSensorError();
             /* 打印警告日志 */
             LOG_WARN("Sensor read error");
+
+            /* 连续失败 3 次：拔线后 status 显示 NOT READY，但任务继续跑 */
+            if (consec_err >= 3U)
+            {
+                App_Status_SetSensorReady(0U);
+            }
+
+            /*
+             * 拔插恢复：每 5 次失败尝试一次重新 Init。
+             * BME280 断电再上电、I2C 卡死都需要重新配置校准/模式。
+             */
+            if ((consec_err % 5U) == 0U)
+            {
+                if (Sensor_Init() == SENSOR_OK)
+                {
+                    App_Status_SetSensorReady(1U);
+                    consec_err = 0;
+                    LOG_INFO("Sensor re-init OK");
+                }
+            }
         }
 
         /* 延时函数，将任务挂起指定的时间

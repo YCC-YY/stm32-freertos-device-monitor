@@ -24,6 +24,7 @@
 #include "app_types.h"
 #include "uart_driver.h"
 #include "sensor_driver.h"
+#include "bme280.h"
 #include "sensor_task.h"
 #include "comm_task.h"
 #include "logger_task.h"
@@ -225,7 +226,7 @@ void CLI_ParseCommand(const char *line, ParsedCommand_t *cmd)
     {
         return;
     }
-
+    /* 复制一份到临时 buf 里操作，安全。然后顺手 `rtrim` 去掉尾巴空格 */
     strncpy(buf, line, sizeof(buf) - 1U);
     buf[sizeof(buf) - 1U] = '\0';
     rtrim(buf);         /* 先去掉行尾多余空格 */
@@ -234,7 +235,7 @@ void CLI_ParseCommand(const char *line, ParsedCommand_t *cmd)
 #if defined(_WIN32)
     tok = strtok_s(buf, " \t", &save);
 #else
-    tok = strtok(buf, " \t");
+    tok = strtok(buf, " \t");               //第一次：传 buf
 #endif
     if (tok == NULL)
     {
@@ -247,16 +248,16 @@ void CLI_ParseCommand(const char *line, ParsedCommand_t *cmd)
 #if defined(_WIN32)
     tok = strtok_s(NULL, " \t", &save);
 #else
-    tok = strtok(NULL, " \t");
+    tok = strtok(NULL, " \t");              //第二次：传 NULL ，拿 “下一个词 ”
 #endif
     if (tok != NULL)
     {
-        strncpy(cmd->arg, tok, sizeof(cmd->arg) - 1U);
-        cmd->has_arg = true;
+        strncpy(cmd->arg, tok, sizeof(cmd->arg) - 1U);    //存第二个词（参数）
+        cmd->has_arg = true;                              //记录 "有没有这个参数"
     }
 
     /* 命令名逐个比较，命中就给出对应的命令编号 */
-    if (strcmp(cmd->name, "help") == 0)
+    if (strcmp(cmd->name, "help") == 0)     // 第 1 个词 → 命令名
     {
         cmd->type = CMD_HELP;
     }
@@ -280,6 +281,18 @@ void CLI_ParseCommand(const char *line, ParsedCommand_t *cmd)
     {
         cmd->type = CMD_RESET;
     }
+    else if (strcmp(cmd->name, "chipid") == 0)
+    {
+        cmd->type = CMD_CHIPID;
+    }
+    else if (strcmp(cmd->name, "bmeread") == 0)
+    {
+        cmd->type = CMD_BMEREAD;
+    }
+    else if (strcmp(cmd->name, "fault") == 0)
+    {
+        cmd->type = CMD_FAULT;
+    }
     else
     {
         cmd->type = CMD_UNKNOWN;        /* 都不匹配 = 未知命令 */
@@ -296,6 +309,9 @@ void CLI_PrintHelp(void)
         "  sensor        Latest sensor sample\r\n"
         "  log on|off    Enable/disable INFO logs\r\n"
         "  stats         Queues / heap / uptime\r\n"
+        "  chipid        BME280 I2C chip-id probe\r\n"
+        "  bmeread       BME280 init + one sample\r\n"
+        "  fault sensor|comm|logger|clear|show\r\n"
         "  reset         Software reset\r\n\r\n");
 }
 
@@ -323,14 +339,15 @@ static void cmd_status(void)
     App_Status_Copy(&st);
     snprintf(line, sizeof(line),
              "\r\nSystem: %s\r\nUptime: %lu ms\r\nSensor: %s\r\nUART: %s\r\n"
-             "Log: %s\r\nSensorErr: %lu\r\nLogDrop: %lu\r\n\r\n",
+             "Log: %s\r\nSensorErr: %lu\r\nLogDrop: %lu\r\nFault: 0x%02lX\r\n\r\n",
              state_name(st.system_state),
              (unsigned long)st.uptime_ms,
              st.sensor_ready ? "OK" : "NOT READY",
              "OK",
              st.logging_enabled ? "ON" : "OFF",
              (unsigned long)st.sensor_error_count,
-             (unsigned long)st.log_dropped_count);
+             (unsigned long)st.log_dropped_count,
+             (unsigned long)App_Fault_Get());
     UART_Driver_SendString(line);
 }
 
@@ -439,6 +456,132 @@ static void cmd_stats(void)
 }
 
 /*
+ * chipid：P0 层 I2C 单测（先不切 SensorTask 真数据）
+ * 依次探测 0x76/0x77，并读 CHIP_ID，期望 0x60
+ */
+static void cmd_chipid(void)
+{
+    uint8_t addr = 0;
+    uint8_t id = 0;
+    char line[96];
+
+    if (BME280_Probe(&addr, &id))
+    {
+        if (id == 0x60U)
+        {
+            snprintf(line, sizeof(line),
+                     "\r\nI2C OK  addr=0x%02X  CHIP_ID=0x%02X  (BME280)\r\n\r\n",
+                     (unsigned)addr, (unsigned)id);
+        }
+        else
+        {
+            snprintf(line, sizeof(line),
+                     "\r\nI2C ACK addr=0x%02X  CHIP_ID=0x%02X  (NOT BME280?)\r\n\r\n",
+                     (unsigned)addr, (unsigned)id);
+        }
+    }
+    else
+    {
+        snprintf(line, sizeof(line),
+                 "\r\nI2C FAIL  no ACK on 0x76/0x77\r\n"
+                 "  check SCL=PB10 SDA=PB11 VCC GND pull-up\r\n\r\n");
+    }
+    UART_Driver_SendString(line);
+}
+
+/*
+ * bmeread：第二层验证（还不接 SensorTask）
+ * BME280_Init（校准+配置）→ BME280_Read（补偿）→ 打印一次
+ */
+static void cmd_bmeread(void)
+{
+    SensorData_t d;
+    char line[128];
+    SensorResult_t r;
+
+    r = BME280_Init();
+    if (r != SENSOR_OK)
+    {
+        UART_Driver_SendString("\r\nBME280_Init FAIL\r\n\r\n");
+        return;
+    }
+
+    /* normal 模式配置后等一帧转换，避免首帧气压偏低 */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    memset(&d, 0, sizeof(d));
+    r = BME280_Read(&d);
+    if (r != SENSOR_OK)
+    {
+        UART_Driver_SendString("\r\nBME280_Read FAIL\r\n\r\n");
+        return;
+    }
+
+    /* temperature_x10=253 → 25.3C */
+    snprintf(line, sizeof(line),
+             "\r\nBME280 OK\r\n"
+             "TEMP : %d.%d C\r\n"
+             "HUM  : %u.%u %%\r\n"
+             "PRESS: %lu Pa (%u.%u hPa)\r\n\r\n",
+             (int)(d.temperature_x10 / 10),
+             (int)((d.temperature_x10 < 0 ? -d.temperature_x10 : d.temperature_x10) % 10),
+             (unsigned)(d.humidity_x10 / 10),
+             (unsigned)(d.humidity_x10 % 10),
+             (unsigned long)d.pressure_pa,
+             (unsigned)(d.pressure_pa / 100U),
+             (unsigned)((d.pressure_pa % 100U) / 10U));
+    UART_Driver_SendString(line);
+}
+
+/*
+ * fault：基础故障注入（验证监控/容错，非破坏硬件）
+ *   fault sensor | comm | logger | clear | show
+ */
+static void cmd_fault(const ParsedCommand_t *cmd)
+{
+    char line[96];
+    uint32_t m;
+
+    if (!cmd->has_arg || strcmp(cmd->arg, "show") == 0)
+    {
+        m = App_Fault_Get();
+        snprintf(line, sizeof(line),
+                 "\r\nFault mask=0x%02lX%s%s%s\r\n\r\n",
+                 (unsigned long)m,
+                 (m & FAULT_SENSOR) ? " SENSOR" : "",
+                 (m & FAULT_COMM) ? " COMM" : "",
+                 (m & FAULT_LOGGER) ? " LOGGER" : "");
+        UART_Driver_SendString(line);
+        return;
+    }
+
+    if (strcmp(cmd->arg, "sensor") == 0)
+    {
+        App_Fault_Set(FAULT_SENSOR);
+        UART_Driver_SendString("\r\nFAULT sensor ON (read fail + stop hb)\r\n\r\n");
+    }
+    else if (strcmp(cmd->arg, "comm") == 0)
+    {
+        App_Fault_Set(FAULT_COMM);
+        UART_Driver_SendString("\r\nFAULT comm ON (stop drain; CLI may freeze)\r\n\r\n");
+    }
+    else if (strcmp(cmd->arg, "logger") == 0)
+    {
+        App_Fault_Set(FAULT_LOGGER);
+        UART_Driver_SendString("\r\nFAULT logger ON (stop hb)\r\n\r\n");
+    }
+    else if (strcmp(cmd->arg, "clear") == 0)
+    {
+        App_Fault_Clear(FAULT_SENSOR | FAULT_COMM | FAULT_LOGGER);
+        UART_Driver_SendString("\r\nFAULT cleared\r\n\r\n");
+    }
+    else
+    {
+        UART_Driver_SendString("\r\nUsage: fault sensor|comm|logger|clear|show\r\n\r\n");
+    }
+}
+
+/*
  * CLI_Execute：命令分发入口
  * 流程：先 ParseCommand 把行解析成 cmd -> 按 cmd.type 在 switch 里调用对应函数
  * 执行完统一再打印一次提示符，等待下一条命令
@@ -470,6 +613,15 @@ void CLI_Execute(const char *line)
         break;
     case CMD_STATS:
         cmd_stats();
+        break;
+    case CMD_CHIPID:
+        cmd_chipid();
+        break;
+    case CMD_BMEREAD:
+        cmd_bmeread();
+        break;
+    case CMD_FAULT:
+        cmd_fault(&cmd);
         break;
     case CMD_RESET:
         UART_Driver_SendString("\r\nResetting...\r\n");

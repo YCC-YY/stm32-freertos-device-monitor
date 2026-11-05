@@ -208,6 +208,51 @@ uint8_t BME280_ChipId(void)
     return id;
 }
 
+/*
+ * P0 通信单测：依次试 0x76 / 0x77
+ * 成功：*addr_7bit = 7 位地址，*chip_id = 期望 0x60，返回 1
+ * 失败：返回 0（无应答或 ID 不对）
+ */
+uint8_t BME280_Probe(uint8_t *addr_7bit, uint8_t *chip_id)
+{
+    static const uint8_t addrs[2] = { 0x76U, 0x77U };
+    uint8_t i;
+    uint8_t id = 0;
+    uint8_t tmp;
+
+    if (addr_7bit == NULL || chip_id == NULL)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < 2U; i++)
+    {
+        /* 只探测总线是否 ACK，不改动全局 BME280_I2C_ADDR */
+        if (HAL_I2C_IsDeviceReady(&hi2c2, (uint16_t)(addrs[i] << 1), 2, 50) != HAL_OK)
+        {
+            continue;
+        }
+
+        if (HAL_I2C_Mem_Read(&hi2c2,
+                             (uint16_t)(addrs[i] << 1),
+                             BME280_REG_ID,
+                             I2C_MEMADD_SIZE_8BIT,
+                             &tmp,
+                             1,
+                             BME280_TIMEOUT_MS) != HAL_OK)
+        {
+            continue;
+        }
+
+        id = tmp;
+        *addr_7bit = addrs[i];
+        *chip_id = id;
+        return 1;
+    }
+
+    return 0;
+}
+
 SensorResult_t BME280_Init(void)
 {
     uint8_t id;

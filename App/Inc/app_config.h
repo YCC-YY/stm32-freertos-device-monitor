@@ -41,7 +41,7 @@
  * 0 = 真实 BME280（I2C2，SCL=PB10，SDA=PB11）
  */
 #ifndef SENSOR_USE_SIMULATION
-#define SENSOR_USE_SIMULATION     1
+#define SENSOR_USE_SIMULATION     0   /* 0=真实 BME280（已 chipid+bmeread 验证） */
 #endif
 
 /* ========== 6. 任务优先级（数字越大优先级越高） ========== */

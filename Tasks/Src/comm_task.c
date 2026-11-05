@@ -54,6 +54,7 @@ void CommTask_Function(void *argument)
 {
     char line[CLI_MAX_COMMAND_LENGTH]; /* 完整命令行缓冲 */
     uint8_t byte;                      /* 环缓取出的 1 字节 */
+    uint32_t fault_start = 0;          /* FAULT_COMM 开始时刻，用于自动恢复 */
     (void)argument;
 
     /* 把句柄交给串口驱动：中断用 Task Notification 唤醒本任务 */
@@ -74,6 +75,26 @@ void CommTask_Function(void *argument)
          * pdTRUE = 取出后清空通知计数（多次中断合并为一次）
          */
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
+
+        /*
+         * 故障注入 FAULT_COMM：暂停消费环缓（CLI 假死）。
+         * 8 秒后自动恢复，避免只能硬件复位；期间 Monitor 可能报 WARNING。
+         */
+        if (App_Fault_IsSet(FAULT_COMM))
+        {
+            if (fault_start == 0U)
+            {
+                fault_start = App_GetTick();
+            }
+            else if ((App_GetTick() - fault_start) >= 8000U)
+            {
+                App_Fault_Clear(FAULT_COMM);
+                fault_start = 0;
+                LOG_WARN("FAULT_COMM auto-cleared");
+            }
+            continue; /* 故障期间：不读环缓、不执行命令 */
+        }
+        fault_start = 0;
 
         /* 醒来后尽量掏空环缓（不是 1 字节 1 通知） */
         while (UART_Driver_PopRx(&byte))
