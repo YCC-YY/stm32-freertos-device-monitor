@@ -21,7 +21,6 @@
  */
 
 /* ===== 全局对象定义（头文件里是 extern 声明） ===== */
-QueueHandle_t     sensorQueue = NULL;
 QueueHandle_t     logQueue    = NULL;
 SemaphoreHandle_t statusMutex = NULL;
 SemaphoreHandle_t i2cMutex    = NULL;
@@ -32,10 +31,6 @@ SemaphoreHandle_t i2cMutex    = NULL;
  */
 BaseType_t App_CreateKernelObjects(void)
 {
-    if (sensorQueue == NULL)
-    {
-        sensorQueue = xQueueCreate(SENSOR_QUEUE_LENGTH, sizeof(SensorData_t));
-    }
     if (logQueue == NULL)
     {
         logQueue = xQueueCreate(LOG_QUEUE_LENGTH, sizeof(LogMessage_t));
@@ -49,7 +44,7 @@ BaseType_t App_CreateKernelObjects(void)
         i2cMutex = xSemaphoreCreateMutex();
     }
 
-    if (sensorQueue == NULL || logQueue == NULL || statusMutex == NULL || i2cMutex == NULL)
+    if (logQueue == NULL || statusMutex == NULL || i2cMutex == NULL)
     {
         return pdFAIL;
     }

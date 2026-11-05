@@ -410,15 +410,11 @@ static void cmd_stats(void)
 {
     AppStatus_t st;
     char line[200];
-    UBaseType_t sq = 0, lq = 0;
+    UBaseType_t lq = 0;
     UBaseType_t hwm_s = 0, hwm_c = 0, hwm_l = 0, hwm_m = 0;
 
     App_Status_Copy(&st);
     /* 两个队列当前已放了多少条消息（队列为空则跳过） */
-    if (sensorQueue)
-    {
-        sq = uxQueueMessagesWaiting(sensorQueue);
-    }
     if (logQueue)
     {
         lq = uxQueueMessagesWaiting(logQueue);
@@ -443,21 +439,19 @@ static void cmd_stats(void)
     }
 
     snprintf(line, sizeof(line),
-             "\r\nSensorQueue: %u used / %u\r\nLogQueue: %u used / %u\r\n"
-             "FreeHeap: %u\r\nMinEverHeap: %u\r\nQueueFull: %lu\r\n"
+             "\r\nLogQueue: %u used / %u\r\n"
+             "FreeHeap: %u\r\nMinEverHeap: %u\r\n"
              "StackHWM(words) S=%u C=%u L=%u M=%u\r\n\r\n",
-             (unsigned)sq, (unsigned)SENSOR_QUEUE_LENGTH,
-             (unsigned)lq, (unsigned)LOG_QUEUE_LENGTH,
+                          (unsigned)lq, (unsigned)LOG_QUEUE_LENGTH,
              (unsigned)xPortGetFreeHeapSize(),
              (unsigned)xPortGetMinimumEverFreeHeapSize(),
-             (unsigned long)st.sensor_queue_full_count,
-             (unsigned)hwm_s, (unsigned)hwm_c, (unsigned)hwm_l, (unsigned)hwm_m);
+                          (unsigned)hwm_s, (unsigned)hwm_c, (unsigned)hwm_l, (unsigned)hwm_m);
     UART_Driver_SendString(line);
 }
 
 /*
- * chipid：P0 层 I2C 单测（先不切 SensorTask 真数据）
- * 依次探测 0x76/0x77，并读 CHIP_ID，期望 0x60
+ * chipid：I2C 通信单测（BME280 三层验证第 1 层）
+ * 探测 0x76/0x77，读寄存器 0xD0，期望 CHIP_ID=0x60
  */
 static void cmd_chipid(void)
 {
@@ -490,8 +484,8 @@ static void cmd_chipid(void)
 }
 
 /*
- * bmeread：第二层验证（还不接 SensorTask）
- * BME280_Init（校准+配置）→ BME280_Read（补偿）→ 打印一次
+ * bmeread：驱动单测（三层验证第 2 层）
+ * BME280_Init → 等一帧转换 → BME280_Read → 打印 TEMP/HUM/PRESS
  */
 static void cmd_bmeread(void)
 {
@@ -534,8 +528,8 @@ static void cmd_bmeread(void)
 }
 
 /*
- * fault：基础故障注入（验证监控/容错，非破坏硬件）
- *   fault sensor | comm | logger | clear | show
+ * fault：故障注入（验证监控/容错）
+ *   sensor 读失败+停心跳 | comm 约 8s 自动恢复 | logger 停心跳 | clear | show
  */
 static void cmd_fault(const ParsedCommand_t *cmd)
 {

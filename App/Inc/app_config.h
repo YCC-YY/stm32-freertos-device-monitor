@@ -19,7 +19,6 @@
 #define STATUS_HEARTBEAT_PRINT_MS 10000U
 
 /* ========== 2. 队列与缓冲区大小 ========== */
-#define SENSOR_QUEUE_LENGTH       8U      /* 传感器数据队列最多暂存几条 */
 #define LOG_QUEUE_LENGTH          16U     /* 日志队列最多暂存几条 */
 #define UART_RX_BUFFER_SIZE       128U    /* 串口接收环形缓冲字节数 */
 #define CLI_MAX_COMMAND_LENGTH    64U     /* 一行命令最大长度 */

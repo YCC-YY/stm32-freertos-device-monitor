@@ -48,8 +48,13 @@ class StressReport:
     cases: List[CaseResult] = field(default_factory=list)
     sent: int = 0
     ok: int = 0
-    fail: int = 0
+    fail: int = 0          # 命令无正确响应/超时
+    cli_error: int = 0     # 设备主动回 Unknown 等（系统仍可控）
     resets: int = 0
+    heap_before: str = "-"
+    heap_after: str = "-"
+    logq_before: str = "-"
+    logq_after: str = "-"
 
     def add(self, r: CaseResult) -> None:
         self.cases.append(r)
@@ -64,10 +69,13 @@ class StressReport:
             "=" * 48,
             "DeviceMonitor UART Stress Report",
             "=" * 48,
-            f"Commands sent : {self.sent}",
-            f"Commands OK   : {self.ok}",
-            f"Commands FAIL : {self.fail}",
-            f"MCU Reset     : {self.resets}",
+            f"Total requests     : {self.sent}",
+            f"OK responses       : {self.ok}",
+            f"Timeout/No-resp    : {self.fail}",
+            f"CLI error replies  : {self.cli_error}",
+            f"MCU unexpected rst : {self.resets}",
+            f"Heap before/after  : {self.heap_before} -> {self.heap_after}",
+            f"LogQueue before/after: {self.logq_before} -> {self.logq_after}",
             "-" * 48,
         ]
         for c in self.cases:
@@ -75,6 +83,17 @@ class StressReport:
             lines.append(f"[{mark}] {c.name:32s} {c.detail}")
         lines.append("=" * 48)
         return "\n".join(lines)
+
+
+def parse_stats(text: str) -> dict:
+    out = {}
+    m = re.search(r"FreeHeap:\s*(\d+)", text)
+    if m:
+        out["heap"] = m.group(1)
+    m = re.search(r"LogQueue:\s*(\d+)\s*used", text)
+    if m:
+        out["logq"] = m.group(1)
+    return out
 
 
 class DeviceCLI:
@@ -138,10 +157,14 @@ def run_stress(port: str, baud: int, n: int, log_path: Optional[str]) -> int:
     print(f"[stress] open {port} @ {baud}", flush=True)
 
     try:
-        # ---- 0. 基线 uptime，用于检测复位 ----
+        # ---- 0. 基线 uptime / stats，用于检测复位与资源 ----
         t0 = dev.uptime_ms()
         report.add(CaseResult("baseline_uptime", t0 is not None, f"uptime={t0}"))
         log(f"baseline uptime={t0}")
+        st0 = dev.send_line("stats", wait=0.8)
+        s0 = parse_stats(st0)
+        report.heap_before = s0.get("heap", "?")
+        report.logq_before = s0.get("logq", "?")
 
         # ---- 1. 合法命令 ----
         for cmd, keys in [
@@ -204,11 +227,18 @@ def run_stress(port: str, baud: int, n: int, log_path: Optional[str]) -> int:
         alive = expect(out, "System") and up is not None
         report.add(CaseResult("alive_after_stress", alive, f"uptime={up}"))
 
+        st1 = dev.send_line("stats", wait=0.8)
+        s1 = parse_stats(st1)
+        report.heap_after = s1.get("heap", "?")
+        report.logq_after = s1.get("logq", "?")
+
         if t0 is not None and up is not None and up + 500 < t0:
             report.resets = 1  # uptime 回退 → 疑似复位
 
         # ---- 6. 非法 + 合法 混合恢复 ----
-        dev.send_line("@@@", wait=0.2)
+        outg = dev.send_line("@@@", wait=0.2)
+        if "Unknown" in outg:
+            report.cli_error += 1
         out = dev.send_line("help", wait=0.8)
         report.add(CaseResult("recover_after_garbage", expect(out, "Available", ">"), ""))
 

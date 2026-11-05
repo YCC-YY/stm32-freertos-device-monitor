@@ -29,8 +29,8 @@ typedef enum
     CMD_LOG,
     CMD_STATS,
     CMD_RESET,
-    CMD_CHIPID,  /* P0：I2C/BME280 芯片 ID 单测 */
-    CMD_BMEREAD, /* 第二层：驱动 Init + 单次读数 */
+    CMD_CHIPID,  /* I2C/BME280 通信单测：读 CHIP_ID */
+    CMD_BMEREAD, /* 驱动单测：Init + 一次温湿度气压 */
     CMD_FAULT    /* 故障注入：fault sensor|comm|logger|clear */
 } CommandType_t;
 

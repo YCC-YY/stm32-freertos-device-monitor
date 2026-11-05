@@ -1,0 +1,42 @@
+baseline uptime=964001
+VALID help -> 'help\r\n\r\nAvailable commands:\r\n  help          Show this help\r\n  status        System status\r\n  sensor        Latest sensor sample\r\n  log on|off    Enable/disable INFO logs\r\n  stats         Queues / heap / uptime\r\n  chipid        BME280 I2C chip-id probe\r\n  bmeread       BME280 init + one sample\r\n  fault sensor|comm|logger|clear|show\r\n  reset         Software reset\r\n\r\n> '
+VALID status -> 'status\r\n\r\nSystem: RUNNING\r\nUptime: 966001 ms\r\nSensor: OK\r\nUART: OK\r\nLog: ON\r\nSensorErr: 0\r\nLogDrop: 0\r\nFault: 0x00\r\n\r\n> '
+VALID sensor -> 'sensor\r\n\r\nts=967981  temp=29.3 C  rh=65.7 %  press=100737 Pa\r\n\r\n> '
+VALID stats -> 'stats\r\n\r\nSensorQueue: 8 used / 8\r\nLogQueue: 0 used / 16\r\nFreeHeap: 2688\r\nMinEverHeap: 2688\r\nQueueFull: 961\r\nStackHWM(words) S=134 C=30 L=94 M=122\r\n\r\n> '
+VALID chipid -> 'chipid\r\n\r\nI2C OK  addr=0x76  CHIP_ID=0x60  (BME280)\r\n\r\n> '
+INVALID 'foo' -> "foo\r\n\r\nUnknown command. Type 'help'.\r\n\r\n> "
+INVALID 'statuss' -> "statuss\r\n\r\nUnknown command. Type 'help'.\r\n\r\n> "
+INVALID 'help me now' -> 'help me now\r\n\r\nAvailable commands:\r\n  help          Show this help\r\n  status        System status\r\n  sensor        Latest sensor sample\r\n  log on|off    Enable/disable INFO logs\r\n  stats         Queues / heap / uptime\r\n  chipid        BME280 I2C chip-id probe\r\n  bmeread       BME280 init + one sample\r\n  fault sensor|comm|logger|clear|show\r\n  reset         Software reset\r\n\r\n> '
+INVALID '!!!' -> "!!!\r\n\r\nUnknown command. Type 'help'.\r\n\r\n> "
+LONG -> "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\nUnknown command. Type 'help'.\r\n\r\n> " uptime=976001
+burst 0
+burst 50
+burst 100
+burst 150
+BURST n=200 fail=0
+================================================
+DeviceMonitor UART Stress Report
+================================================
+Total requests     : 14
+OK responses       : 14
+Timeout/No-resp    : 0
+CLI error replies  : 1
+MCU unexpected rst : 0
+Heap before/after  : 2688 -> 2688
+LogQueue before/after: 0 -> 0
+------------------------------------------------
+[OK ] baseline_uptime                  uptime=964001
+[OK ] valid:help                       help  Available commands:   help          Show this help   status        Sys
+[OK ] valid:status                     status  System: RUNNING Uptime: 966001 ms Sensor: OK UART: OK Log: ON Sen
+[OK ] valid:sensor                     sensor  ts=967981  temp=29.3 C  rh=65.7 %  press=100737 Pa  > 
+[OK ] valid:stats                      stats  SensorQueue: 8 used / 8 LogQueue: 0 used / 16 FreeHeap: 2688 MinEver
+[OK ] valid:chipid                     chipid  I2C OK  addr=0x76  CHIP_ID=0x60  (BME280)  > 
+[OK ] invalid:foo                      foo  Unknown command. Type 'help'.  > 
+[OK ] invalid:statuss                  statuss  Unknown command. Type 'help'.  > 
+[OK ] invalid:help me now              help me now  Available commands:   help          Show thi
+[OK ] invalid:!!!                      !!!  Unknown command. Type 'help'.  > 
+[OK ] long_command                     uptime_after=976001
+[OK ] burst_stress                     n=200 visible_fail=0
+[OK ] alive_after_stress               uptime=1182026
+[OK ] recover_after_garbage            
+================================================

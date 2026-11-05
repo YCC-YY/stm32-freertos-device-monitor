@@ -21,8 +21,10 @@
 extern "C" {
 #endif
 
-/* ===== 全局内核对象（在 app_tasks.c 里创建） ===== */
-extern QueueHandle_t  sensorQueue;   /* 传感器数据队列 */
+/* ===== 全局内核对象（在 app_tasks.c 里创建） =====
+ * 传感器数据不走队列：各任务用 App_Status_GetLatestSensor() 读最新值（Mutex）。
+ * 需要历史/OLED/BLE 广播时再加消息机制，避免“有队列无消费者”。
+ */
 extern QueueHandle_t  logQueue;      /* 日志队列 */
 extern SemaphoreHandle_t statusMutex; /* 保护 AppStatus */
 extern SemaphoreHandle_t i2cMutex;    /* 保护 I2C 总线 */
