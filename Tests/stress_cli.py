@@ -133,6 +133,9 @@ def run_stress(port: str, baud: int, n: int, log_path: Optional[str]) -> int:
     def log(msg: str) -> None:
         if log_f:
             log_f.write(msg + "\n")
+            log_f.flush()
+
+    print(f"[stress] open {port} @ {baud}", flush=True)
 
     try:
         # ---- 0. 基线 uptime，用于检测复位 ----
@@ -174,7 +177,10 @@ def run_stress(port: str, baud: int, n: int, log_path: Optional[str]) -> int:
         burst_fail = 0
         for i in range(n):
             c = burst_cmds[i % len(burst_cmds)]
-            out = dev.send_line(c, wait=0.15, append_crlf=True)
+            out = dev.send_line(c, wait=0.12, append_crlf=True)
+            if i % 50 == 0:
+                print(f"[stress] burst {i}/{n}", flush=True)
+                log(f"burst {i}")
             if c == "help" and not expect(out, "Available", ">"):
                 burst_fail += 1
             elif c == "status" and not expect(out, "System", ">"):
