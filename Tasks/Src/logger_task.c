@@ -73,10 +73,24 @@ void LoggerTask_Function(void *argument)
             App_Status_BeatLogger(App_GetTick());
         }
 
-        /* 最多等 500ms；有消息就打印，没消息继续打心跳 */
+        /* ---- 从日志队列取一条消息（阻塞等待） ----
+         * xQueueReceive(队列, 取出的数据放哪, 等待时间)：
+         *   - 队列有消息 → 立刻取走，返回 pdTRUE，msg 被填好
+         *   - 队列为空   → 挂起等待；pdMS_TO_TICKS(500) 是最多等 500ms，
+         *                 500ms 一到无论有没有消息都返回（超时返回 pdFALSE）
+         * 为什么用"等 500ms"而不是"永久等"？
+         *   → 因为任务还要抽空更新心跳（上面那段 BeatLogger），
+         *     如果永久阻塞，监控任务就以为它卡死了。
+         */
         if (logQueue != NULL &&
             xQueueReceive(logQueue, &msg, pdMS_TO_TICKS(500)) == pdTRUE)
         {
+            /* 把结构化日志拼成一行文本：
+             * [时间戳毫秒][级别缩写] 内容\r\n
+             * 例：[     136127][WRN] Sensor read error\r\n
+             * %10lu：宽度至少 10 的十进制数，右对齐（让日志时间列整齐）
+             * %s   ：字符串（级别标签 / 日志内容）
+             */
             snprintf(line,
                      sizeof(line),
                      "[%10lu][%s] %s\r\n",
@@ -84,6 +98,7 @@ void LoggerTask_Function(void *argument)
                      level_tag(msg.level),
                      msg.text);
 
+            /* 唯一出口：整行一次性发出去，避免多个任务交错打印乱码 */
             UART_Driver_SendString(line);
         }
     }

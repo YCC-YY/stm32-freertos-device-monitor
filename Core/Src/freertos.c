@@ -16,6 +16,21 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— freertos.c（CubeMX 生成的 RTOS 初始化）
+ *
+ * 这是 CubeMX 用 CMSIS-RTOS2 封装生成的"默认任务"文件：
+ *   MX_FREERTOS_Init()  创建 defaultTask
+ *   StartDefaultTask()  defaultTask 的任务函数（空转）
+ *
+ * 重要说明：本项目实际不经过这里！
+ *   main() 里先调用了 App_StartScheduler()（App 层，内部用原生 FreeRTOS API
+ *   xTaskCreate 创建 Sensor/Comm/Logger/Monitor 四个任务并 vTaskStartScheduler()），
+ *   该函数启动调度器后永不返回，所以本文件的 MX_FREERTOS_Init / StartDefaultTask
+ *   不会被执行。保留它是为了 CubeMX 图形界面可正常打开工程。
+ * ============================================================
+ */
 
 /* Includes ------------------------------------------------------------------*/
 #include "FreeRTOS.h"

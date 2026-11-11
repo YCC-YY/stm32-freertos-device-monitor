@@ -29,6 +29,7 @@
 | F3 | `fault logger` | **PASS** |
 | F4 | `fault comm` | **PASS** 约 8s 自动恢复 |
 | F5 | `fault show` | **PASS** |
+| F6 | `fault i2c` | 驱动层注入：连续错误→re-init 策略（非真实 HAL 超时） |
 
 ## 3. 压力测试（n=200）
 

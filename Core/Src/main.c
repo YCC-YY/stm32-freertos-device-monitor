@@ -16,6 +16,26 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— main.c（程序入口）
+ *
+ * 本文件由 CubeMX 生成，但下面几处是手动补充的关键代码：
+ *   - UART_Driver_BindHandle(&huart2)  把串口句柄交给自写的 uart_driver
+ *   - UART_Driver_Init()               初始化串口接收环形缓冲
+ *   - __HAL_UART_ENABLE_IT(...)        打开 USART2 接收中断（RXNE）
+ *   - HAL_NVIC_EnableIRQ(...)          打开内核 NVIC 的 USART2 总中断开关
+ *   - App_StartScheduler()             启动本项目自己的 FreeRTOS 任务调度
+ *
+ * 启动顺序（新手按这个理解）：
+ *   HAL_Init → SystemClock_Config（HSE×9 = 72MHz）→ GPIO/USART2/I2C2/IWDG 外设初始化
+ *   → 串口驱动绑定 + 开接收中断 → App_StartScheduler()（不再返回）
+ *
+ * 注意：main() 里 osKernelInitialize / MX_FREERTOS_Init / osKernelStart
+ *       是 CubeMX 默认生成的 CMSIS-RTOS2 启动代码；由于 App_StartScheduler()
+ *       内部调用 vTaskStartScheduler() 后永不返回，这些代码实际不会执行到。
+ * ============================================================
+ */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
@@ -98,6 +118,22 @@ int main(void)
   MX_I2C2_Init();
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+  /* ============ 手动补充：串口驱动 + 中断 + 启动调度 ============
+   * 1. UART_Driver_BindHandle(&huart2)
+   *     把 CubeMX 生成的串口句柄 huart2 交给自写的 uart_driver，
+   *     以后 uart_driver 内部发送就靠它（注意传的是地址 &，不是值）。
+   * 2. UART_Driver_Init()
+   *     初始化接收环形缓冲（把 s_rx_storage 数组交给 RingBuffer 管理），
+   *     并清零溢出/中断/取出计数。
+   * 3. __HAL_UART_ENABLE_IT(&huart2, UART_IT_RXNE)
+   *     打开 USART2 的"接收寄存器非空"中断：
+   *     每收到 1 字节，硬件就触发 USART2_IRQHandler（见 stm32f1xx_it.c）。
+   * 4. HAL_NVIC_EnableIRQ(USART2_IRQn)
+   *     打开内核 NVIC 的总开关（上一步是外设开关，这一步是 CPU 侧开关，
+   *     两个都要开，中断才能真正进来）。
+   * 5. App_StartScheduler()
+   *     点火！创建四个 FreeRTOS 任务并启动调度器，之后永不返回。
+   */
   UART_Driver_BindHandle(&huart2);
   UART_Driver_Init();       // 补上这一行！初始化串口驱动和RingBuffer
   __HAL_UART_ENABLE_IT(&huart2, UART_IT_RXNE);

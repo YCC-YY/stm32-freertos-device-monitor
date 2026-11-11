@@ -129,6 +129,14 @@ bool UART_Driver_PopRx(uint8_t *byte)
     return ok;
 }
 
+/*
+ * 下面三个是"诊断计数"接口，给 CLI / 调试用，不影响收发逻辑：
+ *   RxOverflow  环缓满导致丢弃的字节数（>0 说明收得太快、任务取太慢）
+ *   RxIsrCount  进入接收中断的次数（约等于硬件收到的字节总数）
+ *   RxPopCount  任务成功取走的字节数
+ * 关系：正常情况下 RxIsrCount ≈ RxPopCount + 环缓里暂存的字节数，
+ *       若 RxOverflow 一直涨，就要加大 UART_RX_BUFFER_SIZE 或提高 CommTask 优先级
+ */
 uint32_t UART_Driver_RxOverflow(void)
 {
     return s_rx_overflow;

@@ -25,26 +25,42 @@
  *
  * main.c 在外设初始化完成后只调用一次 App_StartScheduler()。
  */
+/*
+ * App_StartScheduler：整个系统的"点火"函数，只在 main() 里调用一次
+ *
+ * 完整启动顺序（每一步都在给下一步铺路）：
+ *   1. 初始化共享状态（g_status 清零、建备用锁）
+ *   2. 建队列和互斥锁（后面所有任务都要用）
+ *   3. 初始化串口环缓（CommTask 收数据靠它）
+ *   4. 创建四个任务（此时只是"登记"，还没开始跑）
+ *   5. vTaskStartScheduler() —— 调度器接管 CPU，永不返回
+ */
 void App_StartScheduler(void)
 {
-    /* 1. 状态结构清零 */
+    /* 1. 状态结构清零（心跳、错误计数、最新传感器值都归零） */
     App_Status_Init();
 
-    /* 2. 内核对象：队列 + 互斥锁 */
+    /* 2. 内核对象：日志队列 + 两个互斥锁
+     *    失败一般是 FreeRTOS 堆(configTOTAL_HEAP_SIZE)不够，
+     *    这里故意死循环，方便调试器停在这里看出问题
+     */
     if (App_CreateKernelObjects() != pdPASS)
     {
         /* 失败：多半是 FreeRTOS 堆太小，卡在这里方便调试 */
         for (;;)
         {
-            __NOP();
+            __NOP();   /* 空操作指令：占位，让 CPU 停在这个循环里 */
         }
     }
 
-    /* 3. 串口接收环缓 */
+    /* 3. 串口接收环缓（注意：main 里已经初始化过一次，这里再清一次，
+     *    保证进入调度前环缓是干净的空状态） */
     UART_Driver_Init();
-    App_Status_SetState(SYSTEM_INIT);
+    App_Status_SetState(SYSTEM_INIT);   /* 标记"正在启动" */
 
-    /* 4. 创建四个任务（优先级、栈大小见 app_config.h） */
+    /* 4. 创建四个任务（每个 Start 内部都调 xTaskCreate）
+     *    注意：任务虽然创建了，但调度器还没启动，所以它们都还没开始跑
+     */
     SensorTask_Start();
     CommTask_Start();
     LoggerTask_Start();
@@ -53,12 +69,15 @@ void App_StartScheduler(void)
     App_Status_SetSchedulerRunning(1U);
     App_Status_SetState(SYSTEM_RUNNING);
 
+    /* 这条日志进 logQueue；等调度器启动后 LoggerTask 才会真正打印出来 */
     LOG_INFO("DeviceMonitor boot, scheduler start");
 
-    /* 5. 启动调度器；成功后此函数不再返回 */
+    /* 5. 启动调度器：从这一刻起由 FreeRTOS 决定谁运行，
+     *    本函数不会再返回（正常情况永远停在调度器里） */
     vTaskStartScheduler();
 
-    /* 能执行到这里 = 调度器启动失败（常见原因：堆不够） */
+    /* 只有调度器启动失败（典型原因：堆不够创建空闲任务/定时器任务）
+     * 才会执行到这里。configASSERT(0) 在调试时直接断死，方便定位 */
     configASSERT(0);
     for (;;)
     {

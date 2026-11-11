@@ -311,7 +311,7 @@ void CLI_PrintHelp(void)
         "  stats         Queues / heap / uptime\r\n"
         "  chipid        BME280 I2C chip-id probe\r\n"
         "  bmeread       BME280 init + one sample\r\n"
-        "  fault sensor|comm|logger|clear|show\r\n"
+        "  fault sensor|comm|logger|i2c|clear|show\r\n"
         "  reset         Software reset\r\n\r\n");
 }
 
@@ -528,8 +528,13 @@ static void cmd_bmeread(void)
 }
 
 /*
- * fault：故障注入（验证监控/容错）
- *   sensor 读失败+停心跳 | comm 约 8s 自动恢复 | logger 停心跳 | clear | show
+ * fault：三层故障验证（与拔插硬件对齐）
+ *   sensor  任务层：读失败+停心跳（状态传播/Monitor）
+ *   i2c     驱动层：BME280_Init/Read 返回 SENSOR_ERROR（错误传播/re-init 流程）
+ *   logger  停 Logger 心跳
+ *   comm    约 8s 自动恢复
+ *   clear|show
+ * 注：fault i2c 不等于真实 HAL NACK/超时；真总线失败用拔插验证。
  */
 static void cmd_fault(const ParsedCommand_t *cmd)
 {
@@ -540,11 +545,12 @@ static void cmd_fault(const ParsedCommand_t *cmd)
     {
         m = App_Fault_Get();
         snprintf(line, sizeof(line),
-                 "\r\nFault mask=0x%02lX%s%s%s\r\n\r\n",
+                 "\r\nFault mask=0x%02lX%s%s%s%s\r\n\r\n",
                  (unsigned long)m,
                  (m & FAULT_SENSOR) ? " SENSOR" : "",
                  (m & FAULT_COMM) ? " COMM" : "",
-                 (m & FAULT_LOGGER) ? " LOGGER" : "");
+                 (m & FAULT_LOGGER) ? " LOGGER" : "",
+                 (m & FAULT_I2C) ? " I2C" : "");
         UART_Driver_SendString(line);
         return;
     }
@@ -552,7 +558,7 @@ static void cmd_fault(const ParsedCommand_t *cmd)
     if (strcmp(cmd->arg, "sensor") == 0)
     {
         App_Fault_Set(FAULT_SENSOR);
-        UART_Driver_SendString("\r\nFAULT sensor ON (read fail + stop hb)\r\n\r\n");
+        UART_Driver_SendString("\r\nFAULT sensor ON (task layer)\r\n\r\n");
     }
     else if (strcmp(cmd->arg, "comm") == 0)
     {
@@ -564,14 +570,19 @@ static void cmd_fault(const ParsedCommand_t *cmd)
         App_Fault_Set(FAULT_LOGGER);
         UART_Driver_SendString("\r\nFAULT logger ON (stop hb)\r\n\r\n");
     }
+    else if (strcmp(cmd->arg, "i2c") == 0)
+    {
+        App_Fault_Set(FAULT_I2C);
+        UART_Driver_SendString("\r\nFAULT i2c ON (driver returns SENSOR_ERROR)\r\n\r\n");
+    }
     else if (strcmp(cmd->arg, "clear") == 0)
     {
-        App_Fault_Clear(FAULT_SENSOR | FAULT_COMM | FAULT_LOGGER);
+        App_Fault_Clear(FAULT_SENSOR | FAULT_COMM | FAULT_LOGGER | FAULT_I2C);
         UART_Driver_SendString("\r\nFAULT cleared\r\n\r\n");
     }
     else
     {
-        UART_Driver_SendString("\r\nUsage: fault sensor|comm|logger|clear|show\r\n\r\n");
+        UART_Driver_SendString("\r\nUsage: fault sensor|comm|logger|i2c|clear|show\r\n\r\n");
     }
 }
 

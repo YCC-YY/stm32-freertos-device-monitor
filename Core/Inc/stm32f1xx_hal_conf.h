@@ -28,6 +28,26 @@
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— stm32f1xx_hal_conf.h（HAL 模块开关表）
+ *
+ * 作用：决定哪些 HAL 外设驱动参与编译。
+ *   前面带注释符号的模块 = 不参与编译（不占 Flash/RAM）；
+ *   写成 #define XXX_MODULE_ENABLED 的模块 = 真正编进固件。
+ *
+ * 本项目实际打开的模块：
+ *   HAL_GPIO   GPIO 引脚（LED / 按键）
+ *   HAL_I2C    I2C2（接 BME280 传感器）
+ *   HAL_IWDG   独立看门狗（MonitorTask 负责喂狗）
+ *   HAL_TIM    TIM4（HAL 的 1ms 时基，见 stm32f1xx_hal_timebase_tim.c）
+ *   HAL_UART   USART2（调试串口）
+ *
+ * 新手排错：如果链接时报"某个 HAL_xxx 函数未定义"，
+ * 先来这个文件确认对应模块是否被打开（前面的注释符号是否去掉了）。
+ * ============================================================
+ */
+
 /* ########################## Module Selection ############################## */
 /**
   * @brief This is the list of modules to be used in the HAL driver

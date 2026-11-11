@@ -37,12 +37,22 @@ static const CommChannel_t s_usb = {
     .write = usb_write,
 };
 
+/*
+ * Comm_Init：通信通道初始化，任务启动时调用一次
+ * 现在只注册一个 "usb" 通道（USART2 调试串口）；
+ * 以后接了 BLE，再 Comm_RegisterChannel 一个 "ble" 通道即可。
+ */
 void Comm_Init(void)
 {
     s_count = 0;
     Comm_RegisterChannel(&s_usb);
 }
 
+/*
+ * Comm_RegisterChannel：把一个通道登记进通道表
+ * 参数 ch：通道对象地址（内部只保存指针，不拷贝）
+ * 通道表最多 2 个（数组大小），满了/空指针直接忽略
+ */
 void Comm_RegisterChannel(const CommChannel_t *ch)
 {
     if (ch == NULL || s_count >= 2U)
@@ -52,6 +62,12 @@ void Comm_RegisterChannel(const CommChannel_t *ch)
     s_channels[s_count++] = ch;
 }
 
+/*
+ * Comm_GetChannel：按名字找一个通道
+ * 参数 name：要查找的通道名（如 "usb"）
+ * 返回：找到的通道指针；找不到返回 NULL
+ * 内部用 strcmp 逐个比较名字
+ */
 const CommChannel_t *Comm_GetChannel(const char *name)
 {
     uint8_t i;
@@ -69,6 +85,10 @@ const CommChannel_t *Comm_GetChannel(const char *name)
     return NULL;
 }
 
+/*
+ * Comm_Default：返回默认通道（usb）
+ * CLI / 业务代码直接用它收发，不需要关心通道名
+ */
 const CommChannel_t *Comm_Default(void)
 {
     return &s_usb;

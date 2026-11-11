@@ -16,7 +16,7 @@
  * 每隔 SENSOR_PERIOD_MS 做一次：
  *   1. 更新心跳（告诉监控任务“我还活着”）
  *   2. Sensor_Read() 读一帧数据
- *   3. 成功：记最新值，并尝试放进 sensorQueue
+ *   3. 成功：更新 latest_sensor（Mutex 共享，无历史队列）
  *   4. 失败：错误计数 +1，打一条 WARN 日志
  *
  * 设计要点：任务不碰 I2C 寄存器，只调用 sensor_driver。
@@ -132,19 +132,6 @@ else
              * 队列有效性保护，如果不等于NULL则说明队列成功创建且避免空指针操作；
              * 同样，系统启动时队列可能创建失败，加这个判断可以防止程序崩溃
              */
-            if (sensorQueue != NULL)
-            {
-                /* 尝试把数据发送到队列（非阻塞）；xQueueSend为队列发送函数（三个参数分别为队列句柄、要发送的数据地址、阻塞等待时间）
-                 * 此处阻塞等待时间为 0：代表如果队列满了，立刻返回失败，绝不等待
-                 * 返回`pdTRUE`代表发送成功；不等于`pdTRUE`就代表队列满了，发送失败
-                 */
-                if (xQueueSend(sensorQueue, &data, 0) != pdTRUE)
-                {
-                    /* 记录队列满的次数
-                       当队列满、数据丢弃时，调用这个函数给 “队列满” 的计数器加 1 */
-                    App_Status_RecordSensorQueueFull();
-                }
-            }
         }
         else
         {

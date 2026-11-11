@@ -16,7 +16,6 @@
 #define SENSOR_PERIOD_MS          1000U   /* 传感器多久采一次 */
 #define MONITOR_PERIOD_MS         2000U   /* 监控任务多久检查一次 */
 #define COMM_POLL_MS              5U      /* 串口任务空转间隔（后续可改成通知唤醒） */
-#define STATUS_HEARTBEAT_PRINT_MS 10000U
 
 /* ========== 2. 队列与缓冲区大小 ========== */
 #define LOG_QUEUE_LENGTH          16U     /* 日志队列最多暂存几条 */
@@ -27,6 +26,13 @@
 /* ========== 3. 健康监控 ========== */
 #define HEARTBEAT_TIMEOUT_MS      5000U   /* 心跳超过 5 秒没更新则告警 */
 #define SENSOR_ERROR_WARN_LIMIT   5U      /* 传感器错误累计多少次进入 WARNING */
+/*
+ * 无人值守状态摘要（与心跳检测相互独立）：
+ * 周期：STATUS_HEARTBEAT_PRINT_MS；开关：STATUS_HEARTBEAT_PRINT_EN
+ * 输出走 LoggerTask，不直接写 UART，也不阻塞 IWDG/心跳逻辑
+ */
+#define STATUS_HEARTBEAT_PRINT_MS 10000U  /* 摘要打印周期：每隔10秒自动打一行状态（单位毫秒） */
+#define STATUS_HEARTBEAT_PRINT_EN 1U      /* 周期状态摘要打印功能开关：1U=开启，0U=关闭；采用预编译 #if判断，关闭时代码块直接不参与编译，不占用 Flash空间 */
 
 /* ========== 4. 命令行 ========== */
 #define CLI_PROMPT                "> "    /* 提示符（系统已经就绪，可以输入命令） */
@@ -34,7 +40,7 @@
 /* 串口工具若不自动补 \r\n，静默多久把当前行当命令提交 */
 #define CLI_LINE_TIMEOUT_MS       400U
 
-/* ========== 5. 传感器后端选择 ========== */
+ /* ========== 5. 传感器后端选择 ========== */
 /*
  * 1 = 软件仿真（不用接硬件，方便先调框架）
  * 0 = 真实 BME280（I2C2，SCL=PB10，SDA=PB11）

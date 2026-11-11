@@ -30,8 +30,27 @@
 extern "C" {
 #endif
 
+/*
+ * UART_Driver_Init：初始化接收环缓（清空 + 计数归零）
+ * 参数：无
+ * 注意：可重复调用，第二次会把缓冲清空（App_StartScheduler 里又调了一次）
+ */
 void UART_Driver_Init(void);
+
+/*
+ * UART_Driver_Send：发送指定长度的原始字节
+ * 参数 data   ：数据首地址（uint8_t 指针，可以对任意类型取地址后强转）
+ * 参数 length ：要发多少字节
+ * 返回：HAL_OK=发送完成；其他=HAL 错误（超时/忙）
+ * 特点：按"地址+字节数"发，不要求以 '\0' 结尾
+ */
 HAL_StatusTypeDef UART_Driver_Send(const uint8_t *data, uint16_t length);
+
+/*
+ * UART_Driver_SendString：发送一个以 '\0' 结尾的字符串
+ * 参数 str：字符串首地址（内部用 strlen 算长度，再调 Send）
+ * 返回：同 UART_Driver_Send
+ */
 HAL_StatusTypeDef UART_Driver_SendString(const char *str);
 
 /*

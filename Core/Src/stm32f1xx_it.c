@@ -16,6 +16,28 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— stm32f1xx_it.c（中断服务程序集中地）
+ *
+ * 与本项目业务相关的三个中断：
+ *
+ * 1. USART2_IRQHandler（重点，串口收数据）
+ *    硬件每收到 1 字节 → 触发本中断 → 读 SR/DR → 调 UART_Driver_RxISR(ch)
+ *    → 字节进环形缓冲 + vTaskNotifyGiveFromISR 唤醒 CommTask。
+ *    规则：中断里绝不调用任务 API/printf，只做最轻量的事。
+ *
+ * 2. TIM4_IRQHandler（时间基准）
+ *    HAL_TIM_IRQHandler → HAL_TIM_PeriodElapsedCallback → HAL_IncTick()
+ *    给整个 HAL 提供毫秒 tick（HAL_GetTick / App_GetTick 的时间来源）。
+ *
+ * 3. I2C2_EV/ER_IRQHandler（I2C2 事件/错误中断）
+ *    BME280 通信走 I2C2，中断方式收尾（当前驱动用阻塞方式为主）。
+ *
+ * NMI / HardFault / MemManage / BusFault / UsageFault：
+ *   异常处理，默认死循环，方便调试器抓现场。
+ * ============================================================
+ */
 #include "ring_buffer.h"
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"

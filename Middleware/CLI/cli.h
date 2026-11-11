@@ -34,7 +34,16 @@ typedef enum
     CMD_FAULT    /* 故障注入：fault sensor|comm|logger|clear */
 } CommandType_t;
 
-/* 解析结果：命令名 + 可选参数（如 log on 里的 on） */
+/*
+ * 解析结果：CLI_ParseCommand 把一行文本拆开后的"成品"
+ *
+ * 字段说明（以输入 "log on" 为例）：
+ *   type     命令编号，如 CMD_LOG（用 strcmp 把 name 与命令表比对后得出）
+ *   name     第 1 个词 = 命令名，如 "log"（最长 16 字节，含结尾符 '\0'）
+ *   arg      第 2 个词 = 参数，如 "on"（没有第二个词时是空字符串）
+ *   has_arg  是否带了参数：true=有 arg，false=只有命令名；
+ *            它的作用是让处理函数能明确区分"没给参数"和"参数恰好是空"
+ */
 typedef struct
 {
     CommandType_t type;
@@ -43,6 +52,17 @@ typedef struct
     bool has_arg;
 } ParsedCommand_t;
 
+/*
+ * CLI_ReadLine 的返回值：告诉调用者"这一轮有没有拿到整行"
+ *
+ *   CLI_OK    取到了一条完整命令（out 里已经是这一行的内容）
+ *   CLI_BUSY  还没有凑齐一行（用户还在打字），调用者继续等下一轮
+ *   CLI_ERR   参数非法（out 是空指针，或 out_size 为 0）
+ *
+ * 典型用法（见 comm_task.c）：
+ *   if (CLI_ReadLine(line, sizeof(line)) == CLI_OK) { CLI_Execute(line); }
+ * 即：只有拿到 CLI_OK 才去执行命令，BUSY 时什么都不做。
+ */
 typedef enum
 {
     CLI_OK = 0,

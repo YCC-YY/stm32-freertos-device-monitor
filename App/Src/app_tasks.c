@@ -26,15 +26,32 @@ SemaphoreHandle_t statusMutex = NULL;
 SemaphoreHandle_t i2cMutex    = NULL;
 
 /*
- * 创建所有内核对象。
- * 每个对象创建失败都返回 pdFAIL（通常是堆内存不够）。
+ * 创建所有内核对象（队列 + 互斥锁）。
+ * 在 App_StartScheduler() 里、创建任务之前调用一次。
+ *
+ * 每个对象的作用：
+ *   logQueue     日志队列：App_Log 往里放，LoggerTask 往外取
+ *   statusMutex  保护全局状态 g_status（读写 AppStatus 都要先拿它）
+ *   i2cMutex     保护 I2C2 总线（防止两个任务同时访问 BME280）
+ *
+ * 返回值：pdPASS=全部创建成功；pdFAIL=有对象创建失败（几乎都是堆内存不够）
+ *
+ * 为什么要先判断 NULL 再创建？
+ *   防止重复创建：如果已经存在就跳过，避免句柄被覆盖、旧对象泄漏。
  */
 BaseType_t App_CreateKernelObjects(void)
 {
+    /* xQueueCreate(队列深度, 每个元素的字节数)
+     * → 深度 16、元素是 LogMessage_t 结构体（16 条日志的"传送带"）
+     * sizeof(...) 编译期就能算出元素大小，FreeRTOS 会按这个大小分配内存
+     */
     if (logQueue == NULL)
     {
         logQueue = xQueueCreate(LOG_QUEUE_LENGTH, sizeof(LogMessage_t));
     }
+    /* xSemaphoreCreateMutex()：创建"互斥量"（带优先级继承的锁）
+     * 拿到锁的任务才能访问被保护的资源，用完必须 give 还回去
+     */
     if (statusMutex == NULL)
     {
         statusMutex = xSemaphoreCreateMutex();
@@ -44,6 +61,7 @@ BaseType_t App_CreateKernelObjects(void)
         i2cMutex = xSemaphoreCreateMutex();
     }
 
+    /* 任一对象创建失败就返回 pdFAIL，让上层知道"资源不够，别继续了" */
     if (logQueue == NULL || statusMutex == NULL || i2cMutex == NULL)
     {
         return pdFAIL;
@@ -79,14 +97,29 @@ void App_Log(LogLevel_t level, const char *fmt, ...)
     msg.level = level;
     msg.timestamp = (uint32_t)ticks;
 
+    /* ---- 把可变参数列表格式化成一个字符串，存进 msg.text ----
+     * va_list：C 语言处理"参数个数不固定"的机制（printf 就是这种）
+     * va_start(args, fmt)：从 fmt 之后开始取可变参数
+     * vsnprintf：像 snprintf 一样格式化，但参数来源是 va_list；
+     *            结果写入 msg.text，最多写 sizeof-1 个字符（自动加 \0）
+     * va_end(args)：用完必须收尾
+     * 例：App_Log(LOG_INFO, "temp=%d", 25) → msg.text = "temp=25"
+     */
     va_start(args, fmt);
     vsnprintf(msg.text, sizeof(msg.text), fmt, args);
     va_end(args);
-    msg.text[sizeof(msg.text) - 1] = '\0';
+    msg.text[sizeof(msg.text) - 1] = '\0';   /* 保险：确保最后一个字符是 \0 */
 
+    /* ---- 把整条日志放进队列 ----
+     * xQueueSend(队列, 要放的数据, 等待时间)：
+     *   - 队列有空位 → 拷贝一份 msg 进去，立即返回 pdTRUE
+     *   - 队列满了   → 最多等 10ms；还放不进就返回非 pdTRUE
+     * 10ms 是"软超时"：宁可丢一条日志，也不能卡住采集任务
+     * （LoggerTask 会周期取队列，所以一般不会满）
+     */
     if (xQueueSend(logQueue, &msg, pdMS_TO_TICKS(10)) != pdTRUE)
     {
-        App_Status_RecordLogDrop();
+        App_Status_RecordLogDrop();   /* 统计丢了多少条（status 命令可看） */
     }
 }
 

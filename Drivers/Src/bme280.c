@@ -16,6 +16,7 @@
 #include "bme280.h"
 #include "i2c.h"
 #include "app_tasks.h"
+#include "app_status.h"
 
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -68,6 +69,7 @@ static BME280_Calib_t s_calib;   /* 出厂校准系数，Init 时读入 */
 static int32_t s_t_fine;         /* 温度补偿中间量 t_fine */
 static uint8_t s_ready;          /* 1=初始化成功 */
 
+/* 拿 I2C 总线锁：同一时刻只允许一个任务访问 I2C2（防数据打架） */
 static SensorResult_t bus_lock(void)
 {
     if (i2cMutex == NULL)
@@ -81,6 +83,7 @@ static SensorResult_t bus_lock(void)
     return SENSOR_OK;
 }
 
+/* 放锁：别的任务可以继续用 I2C 总线 */
 static void bus_unlock(void)
 {
     if (i2cMutex != NULL)
@@ -89,6 +92,13 @@ static void bus_unlock(void)
     }
 }
 
+/*
+ * write_reg：向 BME280 的某个寄存器写 1 字节（I2C 内存写）
+ * reg ：寄存器地址（如 0xF4 控制寄存器）
+ * val ：要写入的值
+ * 返回 SENSOR_OK / SENSOR_ERROR
+ * 前置：调用者已持有 i2cMutex（bus_lock）
+ */
 static SensorResult_t write_reg(uint8_t reg, uint8_t val)
 {
     HAL_StatusTypeDef st = HAL_I2C_Mem_Write(&hi2c2,
@@ -101,6 +111,14 @@ static SensorResult_t write_reg(uint8_t reg, uint8_t val)
     return (st == HAL_OK) ? SENSOR_OK : SENSOR_ERROR;
 }
 
+/*
+ * read_regs：从 BME280 连续读 len 个字节（I2C 内存读）
+ * reg ：起始寄存器地址
+ * buf ：读到的数据放这里
+ * len ：要读的字节数
+ * 返回 SENSOR_OK / SENSOR_ERROR
+ * 前置：调用者已持有 i2cMutex（bus_lock）
+ */
 static SensorResult_t read_regs(uint8_t reg, uint8_t *buf, uint16_t len)
 {
     HAL_StatusTypeDef st = HAL_I2C_Mem_Read(&hi2c2,
@@ -113,6 +131,12 @@ static SensorResult_t read_regs(uint8_t reg, uint8_t *buf, uint16_t len)
     return (st == HAL_OK) ? SENSOR_OK : SENSOR_ERROR;
 }
 
+/*
+ * load_calib：读取 BME280 出厂校准系数（每个芯片不同）
+ * 温度校准 12 字节（0x88 起）+ 湿度校准 7 字节（0xE1 起），共 19 项。
+ * 这些系数存进 s_calib，后续补偿算法全靠它们，读错则数值全偏。
+ * 返回 SENSOR_OK / SENSOR_ERROR
+ */
 static SensorResult_t load_calib(void)
 {
     uint8_t c[26];
@@ -149,6 +173,12 @@ static SensorResult_t load_calib(void)
     return SENSOR_OK;
 }
 
+/*
+ * comp_temp：原始温度 ADC → 实际温度（单位 0.01°C）
+ * 算法来自 Bosch datasheet 整数公式，必须按顺序算；
+ * 中间量 t_fine 存到全局，气压/湿度补偿也要用到它。
+ * 返回：如 2530 = 25.30°C
+ */
 static int32_t comp_temp(int32_t adc_T)
 {
     int32_t var1, var2, T;
@@ -160,6 +190,10 @@ static int32_t comp_temp(int32_t adc_T)
     return T; /* 0.01 degC */
 }
 
+/*
+ * comp_press：原始气压 ADC → 实际气压（单位 Pa）
+ * 依赖 comp_temp 算好的 s_t_fine，返回约 101325（标准大气压附近）
+ */
 static uint32_t comp_press(int32_t adc_P)
 {
     int64_t var1, var2, p;
@@ -182,6 +216,10 @@ static uint32_t comp_press(int32_t adc_P)
     return (uint32_t)(p >> 8);
 }
 
+/*
+ * comp_hum：原始湿度 ADC → 实际湿度（单位 0.01%RH）
+ * 依赖 s_t_fine；返回如 5210 = 52.10%RH
+ */
 static uint32_t comp_hum(int32_t adc_H)
 {
     int32_t v_x1_u32r;
@@ -253,12 +291,23 @@ uint8_t BME280_Probe(uint8_t *addr_7bit, uint8_t *chip_id)
     return 0;
 }
 
+/*
+ * BME280_Init：完整初始化 BME280
+ * 流程：读芯片 ID 校验(应为 0x60) → 软复位 → 读校准系数 → 配置过采样/工作模式
+ * 成功置 s_ready=1；失败返回 SENSOR_ERROR，调用方(传感器任务)会定期重试
+ */
 SensorResult_t BME280_Init(void)
 {
     uint8_t id;
     SensorResult_t r;
 
     s_ready = 0;
+
+    /* 驱动层故障注入：模拟 Init/总线异常（不等同真实 HAL 超时） */
+    if (App_Fault_IsSet(FAULT_I2C))
+    {
+        return SENSOR_ERROR;
+    }
 
     if (bus_lock() != SENSOR_OK)
     {
@@ -308,6 +357,12 @@ SensorResult_t BME280_Init(void)
     return SENSOR_OK;
 }
 
+/*
+ * BME280_Read：读一次完整的温/湿/压
+ * 流程：一次读 8 字节原始 ADC → 拆出 P/T/H 三个原始值
+ *       → 依次做温度/气压/湿度补偿 → 填进 data（单位见 app_types.h）
+ * 前置：BME280_Init 成功过(s_ready=1)
+ */
 SensorResult_t BME280_Read(SensorData_t *data)
 {
     uint8_t raw[8];
@@ -316,6 +371,12 @@ SensorResult_t BME280_Read(SensorData_t *data)
     uint32_t p_q24, h_x100;
 
     if (data == NULL || !s_ready)
+    {
+        return SENSOR_ERROR;
+    }
+
+    /* 驱动层故障注入：Read 直接失败，验证上层错误计数/re-init 策略 */
+    if (App_Fault_IsSet(FAULT_I2C))
     {
         return SENSOR_ERROR;
     }

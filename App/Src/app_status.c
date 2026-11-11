@@ -130,6 +130,11 @@ void App_Status_SetLoggingEnabled(uint8_t enabled)
     status_unlock();
 }
 
+/*
+ * 查询日志开关当前状态
+ * 返回 1=允许输出 INFO/DEBUG 日志；0=只输出 WARN/ERROR
+ * 调用者：App_Log 每次打日志前都会先问一下
+ */
 uint8_t App_Status_IsLoggingEnabled(void)
 {
     uint8_t e;
@@ -171,7 +176,12 @@ void App_Status_RecordSensorQueueFull(void)
 
 /*--------- 心跳：每个任务把“当前毫秒时间”写进去 ---------*/
 
-/* 同下 */
+/*
+ * 更新传感器任务的心跳：把"当前毫秒时间"写进 sensor_heartbeat
+ * 参数 now_ms：当前时刻，一般传 App_GetTick()
+ * SensorTask 每采完一轮就调一次；故障注入 FAULT_SENSOR 时会跳过它，
+ * 于是 MonitorTask 会判定它"卡死"，从而把系统切到 WARNING
+ */
 void App_Status_BeatSensor(uint32_t now_ms)
 {
     status_lock();  //获取锁，防止多个任务同时访问和修改g_status相关状态数据
@@ -188,6 +198,11 @@ void App_Status_BeatComm(uint32_t now_ms)
     status_unlock();
 }
 
+/*
+ * 更新日志任务的心跳：把"当前毫秒时间"写进 logger_heartbeat
+ * 参数 now_ms：当前时刻，一般传 App_GetTick()
+ * MonitorTask 用"现在 - logger_heartbeat > 5000ms"判断它是否卡死
+ */
 void App_Status_BeatLogger(uint32_t now_ms)
 {
     status_lock();
@@ -195,6 +210,11 @@ void App_Status_BeatLogger(uint32_t now_ms)
     status_unlock();
 }
 
+/*
+ * 更新监控任务自己的心跳：写入 monitor_heartbeat
+ * 参数 now_ms：当前时刻（App_GetTick）
+ * 监控任务给自己打卡，Dashboard/调试时能看出它自己是否也卡住了
+ */
 void App_Status_BeatMonitor(uint32_t now_ms)
 {
     status_lock();
@@ -220,6 +240,11 @@ void App_Status_SetLatestSensor(const SensorData_t *data)
     status_unlock();
 }
 
+/*
+ * 读取最近一帧传感器数据
+ * 参数 out：输出缓冲（调用者提供），函数把 latest_sensor 整份拷进去
+ * 注意：拷出来的是快照，之后 SensorTask 再采新数据也不会影响 out
+ */
 void App_Status_GetLatestSensor(SensorData_t *out)
 {
     if (out == NULL)
@@ -275,6 +300,10 @@ void App_Fault_Clear(uint32_t mask)
     status_unlock();
 }
 
+/*
+ * 读取当前故障注入掩码（哪些故障被打开了）
+ * 返回：位掩码，例如 0x05 表示 FAULT_SENSOR | FAULT_LOGGER 同时打开
+ */
 uint32_t App_Fault_Get(void)
 {
     uint32_t m;
@@ -284,6 +313,12 @@ uint32_t App_Fault_Get(void)
     return m;
 }
 
+/*
+ * 判断某个故障是否被打开
+ * 参数 mask：单个故障位，如 FAULT_SENSOR
+ * 返回：1=该故障已注入；0=没有
+ * 原理：把当前掩码与该位做 &（按位与），结果非 0 说明这一位是 1
+ */
 uint8_t App_Fault_IsSet(uint32_t mask)
 {
     return (App_Fault_Get() & mask) != 0U ? 1U : 0U;

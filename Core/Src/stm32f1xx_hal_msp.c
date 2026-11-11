@@ -17,6 +17,23 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— stm32f1xx_hal_msp.c（HAL 底层支撑，CubeMX 生成）
+ *
+ * MSP = MCU Support Package（单片机支撑包）：HAL 只负责"外设怎么用"，
+ * 而"外设靠哪些引脚、时钟、中断优先级"这类芯片级细节由 MSP 函数完成。
+ *
+ * 本文件只有 HAL_MspInit（全局初始化，外设级 MspInit 在各外设文件里）：
+ *   __HAL_RCC_AFIO_CLK_ENABLE()   打开 AFIO 时钟（引脚重映射/调试口配置需要）
+ *   __HAL_RCC_PWR_CLK_ENABLE()    打开电源管理时钟
+ *   HAL_NVIC_SetPriority(PendSV_IRQn, 15, 0)
+ *        PendSV 是 FreeRTOS 做任务切换用的异常，必须设为最低优先级 15，
+ *        否则任务切换会打断其他中断，导致系统不稳
+ *   __HAL_AFIO_REMAP_SWJ_NOJTAG() 关闭 JTAG、只保留 SWD 调试口，
+ *        这样 PB3/PB4/PA15 这几个 JTAG 占用的引脚可以当普通 IO 用
+ * ============================================================
+ */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 /* USER CODE BEGIN Includes */

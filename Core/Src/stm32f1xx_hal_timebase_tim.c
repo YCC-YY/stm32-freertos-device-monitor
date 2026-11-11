@@ -16,6 +16,23 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+/*
+ * ============================================================
+ * 【分层导读】Core 层 —— stm32f1xx_hal_timebase_tim.c（HAL 时间基准，CubeMX 生成）
+ *
+ * 【关键知识点】为什么用 TIM4 而不是 SysTick 做 HAL 的毫秒时基？
+ *   裸机工程里 HAL 默认用 SysTick 提供 1ms 中断（HAL_IncTick）。
+ *   但本项目用了 FreeRTOS，SysTick 被 FreeRTOS 拿去做"系统节拍"和任务调度，
+ *   如果两个都用 SysTick 会互相打架，所以 CubeMX 把 HAL 时基改到 TIM4：
+ *       TIM4 每 1ms 中断一次 → HAL_TIM_PeriodElapsedCallback → HAL_IncTick()
+ *   于是：HAL_GetTick / App_GetTick 的毫秒数来自 TIM4；
+ *        FreeRTOS 的 tick 来自 SysTick；两者互不干扰。
+ *
+ * 本文件核心函数：
+ *   HAL_InitTick()   配置 TIM4 为 1ms 中断（HAL_Init / 改时钟时自动调用）
+ *   HAL_SuspendTick / HAL_ResumeTick  暂停/恢复时基（调试用）
+ * ============================================================
+ */
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"

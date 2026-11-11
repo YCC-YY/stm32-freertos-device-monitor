@@ -18,7 +18,26 @@
 extern "C" {
 #endif
 
-/* 内部使用的完整状态（一般任务不要直接操作） */
+/*
+ * 内部使用的完整状态（一般任务不要直接操作，请调用下面的 App_Status_* 函数）
+ *
+ * 这个结构体是整个系统的"信息中心"，所有任务共享一份（g_status），
+ * 内部由 app_status.c 用 statusMutex 加锁保护。
+ *
+ * 字段说明：
+ *   system_state            系统大状态：INIT/RUNNING/WARNING/ERROR（MonitorTask 负责切换）
+ *   uptime_ms               开机运行时长，单位 ms（MonitorTask 每周期更新）
+ *   sensor_error_count      传感器读失败累计次数（SensorTask 每次失败 +1；
+ *                           达到 SENSOR_ERROR_WARN_LIMIT 后系统转 WARNING）
+ *   uart_error_count        串口异常累计次数（如环缓溢出）
+ *   log_dropped_count       日志队列满导致被丢弃的条数（App_Log 统计）
+ *   sensor_queue_full_count 传感器队列满的次数（当前设计已改为"最新值缓存"，基本不用）
+ *   sensor_ready            1=传感器当前可用；0=未初始化/连续失败/故障注入中
+ *   logging_enabled         1=允许输出 DEBUG/INFO 日志；0=只保留 WARN/ERROR
+ *   scheduler_running       1=调度器已启动（调试用）
+ *   heartbeat               四个任务的心跳时间戳（见 TaskHeartbeat_t）
+ *   latest_sensor           最近一帧有效传感器数据（status/sensor 命令显示它）
+ */
 typedef struct
 {
     SystemState_t system_state;
